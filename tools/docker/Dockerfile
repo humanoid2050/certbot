@@ -1,11 +1,5 @@
 # Docker Arch (amd64, arm32v6, ...)
-ARG TARGET_ARCH
-FROM ${TARGET_ARCH}/python:3.10-alpine3.16
-
-# Qemu Arch (x86_64, arm, ...)
-ARG QEMU_ARCH
-ENV QEMU_ARCH=${QEMU_ARCH}
-COPY qemu-${QEMU_ARCH}-static /usr/bin/
+FROM python:3.10-alpine3.16 as certbot
 
 ENTRYPOINT [ "certbot" ]
 EXPOSE 80 443
@@ -46,3 +40,13 @@ RUN apk add --no-cache --virtual .build-deps \
             --editable src/certbot \
     && apk del .build-deps \
     && rm -rf ${HOME}/.cargo
+RUN certbot plugins --prepare
+
+
+FROM certbot as plugin
+# Copy Certbot DNS plugin code
+COPY --from=plugin-src . /opt/certbot/src/plugin
+# Install the DNS plugin
+RUN python tools/pip_install.py --no-cache-dir --editable /opt/certbot/src/plugin
+RUN certbot plugins --prepare
+

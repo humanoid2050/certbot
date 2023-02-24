@@ -2,55 +2,33 @@ jobs:
   - job: docker_build
     pool:
       vmImage: ubuntu-22.04
-    strategy:
-      matrix:
-        amd64:
-          DOCKER_ARCH: amd64
-        arm32v6:
-          DOCKER_ARCH: arm32v6
-        arm64v8:
-          DOCKER_ARCH: arm64v8
     # The default timeout of 60 minutes is a little low for compiling
     # cryptography on ARM architectures.
     timeoutInMinutes: 180
     steps:
-      - bash: set -e && tools/docker/build.sh $(dockerTag) $DOCKER_ARCH
+      # The credentials used in the following jobs are for the shared
+      # certbotbot account on Docker Hub. The credentials are stored 
+      # in a service account which was created by following the 
+      # instructions at
+      # https://docs.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops&tabs=yaml#sep-docreg.
+      # The name given to this service account must match the value
+      # given to containerRegistry below. The authentication used when
+      # creating this service account was a personal access token
+      # rather than a password to bypass 2FA. When Brad set this up,
+      # Azure Pipelines failed to verify the credentials with an error
+      # like "access is forbidden with a JWT issued from a personal
+      # access token", but after saving them without verification, the
+      # access token worked when the pipeline actually ran. "Grant
+      # access to all pipelines" should also be checked on the service
+      # account. The access token can be deleted on Docker Hub if
+      # these credentials need to be revoked.
+      - task: Docker@2
+        inputs:
+          command: login
+          containerRegistry: docker-hub
+        displayName: Login to Docker Hub
+      - bash: set -e && tools/docker/build.sh $(dockerTag)
         displayName: Build the Docker images
-      # We don't filter for the Docker Hub organization to continue to allow
-      # easy testing of these scripts on forks.
-      - bash: |
-          set -e
-          DOCKER_IMAGES=$(docker images --filter reference='*/certbot' --filter reference='*/dns-*' --format '{{.Repository}}')
-          docker save --output images.tar $DOCKER_IMAGES
-        displayName: Save the Docker images
-      # If the name of the tar file or artifact changes, the deploy stage will
-      # also need to be updated.
-      - bash: set -e && mv images.tar $(Build.ArtifactStagingDirectory)
-        displayName: Prepare Docker artifact
-      - task: PublishPipelineArtifact@1
-        inputs:
-          path: $(Build.ArtifactStagingDirectory)
-          artifact: docker_$(DOCKER_ARCH)
-        displayName: Store Docker artifact
-  - job: docker_run
-    dependsOn: docker_build
-    pool:
-      vmImage: ubuntu-22.04
-    steps:
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: docker_amd64
-          path: $(Build.SourcesDirectory)
-        displayName: Retrieve Docker images
-      - bash: set -e && docker load --input $(Build.SourcesDirectory)/images.tar
-        displayName: Load Docker images
-      - bash: |
-          set -ex
-          DOCKER_IMAGES=$(docker images --filter reference='*/certbot' --filter reference='*/dns-*' --format '{{.Repository}}:{{.Tag}}')
-          for DOCKER_IMAGE in ${DOCKER_IMAGES}
-            do docker run --rm "${DOCKER_IMAGE}" plugins --prepare
-          done
-        displayName: Run integration tests for Docker images
   - job: installer_build
     pool:
       vmImage: windows-2019
