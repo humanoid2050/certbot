@@ -2,7 +2,30 @@
 
 Certbot adheres to [Semantic Versioning](https://semver.org/).
 
-## 2.4.0 - master
+## 2.5.0 - master
+
+### Added
+
+* `acme.messages.OrderResource` now supports being round-tripped
+  through JSON
+* acme.client.ClientV2 now provides separate `begin_finalization`
+  and `poll_finalization` methods, in addition to the existing
+  `finalize_order` method.
+
+### Changed
+
+* `--dns-route53-propagation-seconds` is now deprecated. The Route53 plugin relies on the
+  [GetChange API](https://docs.aws.amazon.com/Route53/latest/APIReference/API_GetChange.html)
+  to determine if a DNS update is complete. The flag has never had any effect and will be
+  removed in a future version of Certbot.
+
+### Fixed
+
+*
+
+More details about these changes can be found on our GitHub repo.
+
+## 2.4.0 - 2023-03-07
 
 ### Added
 
